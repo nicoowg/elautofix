@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="ElAutoFix reparerer elbil- og busbatterier med brugte dele.">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>ElAutoFix</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: lang rolig side man scroller ned ad. 3D-værkstedet står fast bagved og følger med. Store kort, stor tekst, høj kontrast */
+:root{
+  --bg:#E9EDF2; --card:rgba(255,255,255,.94); --solid:#FFFFFF; --ink:#0A0F18; --mute:#3F4958; --line:#CDD4DE;
+  --accent:#2547E8; --accentInk:#FFFFFF; --bad:#D92D42; --green:#1E8A58; --greenDim:#9ED2B8;
+  --s-floor:#DCE1E8; --s-metal:#9AA4B2; --s-dark:#2B323D; --s-car:#F5F7FA; --s-glass:#1B2230; --s-cell:#D2D9E2; --s-tile:#CBD2DC;
+  --sans:"Geist",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#080B10; --card:rgba(17,21,28,.94); --solid:#141921; --ink:#F3F6FA; --mute:#B4BCC8; --line:#2C3440;
+  --accent:#7D93FF; --accentInk:#0A0F18; --bad:#FF6475; --green:#62CF96; --greenDim:#2E5C47;
+  --s-floor:#10151D; --s-metal:#4A5361; --s-dark:#1A2029; --s-car:#C7CED8; --s-glass:#090C11; --s-cell:#3A4351; --s-tile:#1A212B; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#080B10; --card:rgba(17,21,28,.94); --solid:#141921; --ink:#F3F6FA; --mute:#B4BCC8; --line:#2C3440;
+  --accent:#7D93FF; --accentInk:#0A0F18; --bad:#FF6475; --green:#62CF96; --greenDim:#2E5C47;
+  --s-floor:#10151D; --s-metal:#4A5361; --s-dark:#1A2029; --s-car:#C7CED8; --s-glass:#090C11; --s-cell:#3A4351; --s-tile:#1A212B; color-scheme:dark}
+
+*{box-sizing:border-box}
+html{scroll-behavior:auto}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:19px;line-height:1.6;-webkit-font-smoothing:antialiased;margin:0}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:12px}
+h1,h2{margin:0;letter-spacing:-.03em;line-height:1.05;text-wrap:balance;font-weight:650}
+h1{font-size:clamp(42px,6.2vw,76px)}
+h2{font-size:clamp(32px,4vw,48px)}
+p{margin:0}
+
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;pointer-events:none;z-index:0}
+
+header{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:16px;
+  padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+.logo{display:flex;align-items:center;gap:10px;font-weight:650;font-size:22px;letter-spacing:-.01em;background:var(--card);padding:10px 16px;border-radius:14px;border:1px solid var(--line)}
+.logo i{width:26px;height:14px;border:2px solid currentColor;border-radius:3px;position:relative;display:block}
+.logo i::before{content:"";position:absolute;inset:2px 8px 2px 2px;background:var(--accent);border-radius:1px}
+.logo i::after{content:"";position:absolute;right:-5px;top:3px;width:3px;height:4px;background:currentColor;border-radius:0 1px 1px 0}
+nav.menu{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:5px}
+nav.menu a{color:var(--ink);text-decoration:none;font-size:17px;font-weight:500;padding:9px 14px;border-radius:10px}
+nav.menu a:hover{background:var(--line)}
+
+/* fast kapacitets-måler mens værkstedet kører */
+.gauge{position:fixed;z-index:5;right:max(24px,env(safe-area-inset-right,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px 20px;width:250px;display:flex;flex-direction:column;gap:10px;
+  transition:opacity .5s,transform .6s var(--ease);box-shadow:0 10px 40px rgba(0,0,0,.12)}
+.gauge[data-off]{opacity:0;transform:translateY(16px);pointer-events:none}
+.gauge .t{font-size:16px;color:var(--mute)}
+.gauge .v{font-size:46px;font-weight:650;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.gauge .v small{font-size:22px;color:var(--mute);margin-left:3px}
+.bar{height:12px;border-radius:6px;background:var(--line);overflow:hidden}
+.bar div{height:100%;border-radius:6px;background:var(--bad);transition:background .6s}
+
+main{position:relative;z-index:1}
+.sec{position:relative;display:flex;flex-direction:column;justify-content:flex-start;
+  padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+.card{position:sticky;top:max(110px,18vh);width:min(480px,100%);background:var(--card);border:1px solid var(--line);border-radius:28px;
+  padding:34px;display:flex;flex-direction:column;gap:20px;box-shadow:0 20px 60px rgba(0,0,0,.10)}
+.hero .card{width:min(600px,100%);background:none;border:0;box-shadow:none;padding:0;position:relative;top:auto;margin-top:26vh}
+.hero .card p{font-size:23px;color:var(--ink);max-width:30ch}
+.scroll{display:inline-flex;align-items:center;gap:10px;font-size:18px;color:var(--mute);margin-top:12px}
+.scroll svg{width:22px;height:22px;animation:bob 1.8s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(5px)}}
+.step{font-size:16px;font-weight:600;color:var(--accent);letter-spacing:.02em}
+.lead{font-size:20px;color:var(--mute)}
+.lead b{color:var(--ink);font-weight:600}
+.facts{display:flex;flex-direction:column}
+.facts div{display:flex;justify-content:space-between;gap:16px;padding-block:14px;border-top:1px solid var(--line);font-size:19px}
+.facts b{font-weight:650;font-variant-numeric:tabular-nums;text-align:right}
+.num{font-size:clamp(48px,6vw,68px);font-weight:650;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
+.num small{font-size:.42em;color:var(--mute);margin-left:6px;letter-spacing:-.01em}
+
+/* prisregner */
+.q{font-size:18px;font-weight:600}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.choices.three{grid-template-columns:1fr 1fr 1fr}
+.choices button{min-height:60px;border-radius:16px;border:2px solid var(--line);background:var(--solid);font-size:19px;font-weight:600;padding:8px;line-height:1.2;transition:border-color .25s,background .25s,color .25s}
+.choices button small{display:block;font-size:14px;font-weight:500;color:var(--mute);margin-top:2px}
+.choices button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--accentInk)}
+.choices button[aria-pressed="true"] small{color:inherit;opacity:.85}
+.choices button:disabled{opacity:.4;cursor:default}
+.result{background:var(--solid);border:2px solid var(--line);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:6px}
+.result .big{font-size:44px;font-weight:650;letter-spacing:-.04em;line-height:1.05;color:var(--green);font-variant-numeric:tabular-nums}
+.small{font-size:17px;color:var(--mute)}
+
+/* co2-tæller */
+.stepper{display:grid;grid-template-columns:64px 1fr 64px;gap:10px;align-items:center}
+.stepper button{height:64px;border-radius:16px;border:2px solid var(--line);background:var(--solid);display:grid;place-items:center}
+.stepper button svg{width:26px;height:26px}
+.stepper output{text-align:center;font-size:40px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.stepper .u{display:block;font-size:15px;font-weight:500;color:var(--mute);letter-spacing:0}
+.key{display:flex;gap:18px;flex-wrap:wrap;font-size:16px;color:var(--mute)}
+.key i{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:8px;vertical-align:-1px}
+
+footer{position:relative;z-index:1;padding-block:60px 80px;text-align:center;font-size:17px;color:var(--mute);
+  padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+footer b{color:var(--ink)}
+
+@media (min-width:1500px){.sec{padding-left:max(6vw,env(safe-area-inset-left,0px))}}
+@media (max-width:820px){
+  body{font-size:18px}
+  nav.menu{display:none}
+  .sec{justify-content:flex-end}
+  .card{top:auto;bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:24px;border-radius:24px;gap:16px}
+  .hero{justify-content:flex-start}
+  .hero .card{margin-top:auto;margin-bottom:8vh;background:var(--card);border:1px solid var(--line);padding:24px}
+  .hero .card p{font-size:20px}
+  .gauge{top:calc(16px + env(safe-area-inset-top,0px));bottom:auto;width:auto;padding:10px 14px;gap:6px;flex-direction:row;align-items:center}
+  .gauge .t,.gauge .bar{display:none}
+  .gauge .v{font-size:30px}
+  .gauge .v small{font-size:16px}
+}
+@media (prefers-reduced-motion:reduce){.scroll svg{animation:none}*{transition-duration:.01s!important}}
+</style>
+</head>
+<body>
+
+<canvas id="gl" aria-hidden="true"></canvas>
+
+<header>
+  <div class="logo"><i></i>ElAutoFix</div>
+  <nav class="menu" aria-label="Sider">
+    <a href="#s-ud">Sådan gør vi</a>
+    <a href="#s-pris">Prisregner</a>
+    <a href="#s-co2">Klimaet</a>
+    <a href="#s-om">Om os</a>
+  </nav>
+</header>
+
+<div class="gauge" id="gauge" data-off aria-live="polite">
+  <span class="t">Batteriets kapacitet</span>
+  <span class="v"><span id="gPct">73</span><small>%</small></span>
+  <div class="bar"><div id="gBar" style="width:73%"></div></div>
+</div>
+
+<main>
+  <section class="sec hero" data-cam="hero" style="min-height:100vh">
+    <div class="card">
+      <h1>Et slidt batteri er ikke en død elbil.</h1>
+      <p>Vi reparerer batteriet med brugte dele, der virker. Det er langt billigere end et nyt.</p>
+      <span class="scroll"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>Rul ned for at se hvordan</span>
+    </div>
+  </section>
+
+  <section class="sec" data-cam="car" style="min-height:110vh">
+    <div class="card">
+      <h2>Et nyt batteri er dyrt.</h2>
+      <p class="lead">Derfor skifter mange tilbage til <b>diesel eller benzin</b>, når batteriet går i stykker.</p>
+      <div class="facts">
+        <div><span>Nyt batteri til elbil</span><b>70.000-80.000 kr</b></div>
+        <div><span>Nyt batteri til bus</span><b>ca. 500.000 kr</b></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="s-ud" data-cam="takeout" data-t0="0" data-t1="1" style="min-height:150vh">
+    <div class="card">
+      <span class="step">Trin 1 af 4</span>
+      <h2>Batteriet tages ud.</h2>
+      <p class="lead">Bilen løftes op, og batteriet køres hen til vores arbejdsbord.</p>
+    </div>
+  </section>
+
+  <section class="sec" data-cam="scan" data-t0="1" data-t1="2" style="min-height:130vh">
+    <div class="card">
+      <span class="step">Trin 2 af 4</span>
+      <h2>Vi måler hver del.</h2>
+      <p class="lead">Batteriet består af mange små moduler. De <b style="color:var(--bad)">røde</b> er slidt ned.</p>
+    </div>
+  </section>
+
+  <section class="sec" data-cam="swap" data-t0="2" data-t1="3" style="min-height:240vh">
+    <div class="card">
+      <span class="step">Trin 3 af 4</span>
+      <h2>De slidte dele skiftes ud.</h2>
+      <p class="lead">Vi sætter <b style="color:var(--accent)">brugte dele</b> i, som er testet og virker fint. Der skal ikke laves nye.</p>
+      <div class="facts"><div><span>Dele skiftet</span><b><span id="swapN">0</span> af 8</b></div></div>
+    </div>
+  </section>
+
+  <section class="sec" data-cam="putback" data-t0="3" data-t1="4" style="min-height:150vh">
+    <div class="card">
+      <span class="step">Trin 4 af 4</span>
+      <h2>Bilen kører igen.</h2>
+      <p class="lead">Batteriet sættes i, og det er oppe på <b>90-100 %</b> af sin kapacitet igen.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="s-pris" data-cam="pris" style="min-height:130vh">
+    <div class="card">
+      <h2>Prisregner</h2>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <span class="q">1. Hvad skal repareres?</span>
+        <div class="choices" id="veh">
+          <button aria-pressed="true" data-v="bil">Elbil</button>
+          <button aria-pressed="false" data-v="bus">Bus</button>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <span class="q">2. Hvor slemt er batteriet?</span>
+        <div class="choices three" id="dmg">
+          <button aria-pressed="false" data-d="0">Lidt<small>små skader</small></button>
+          <button aria-pressed="true" data-d="1">Middel<small>nogle skader</small></button>
+          <button aria-pressed="false" data-d="2">Meget<small>store skader</small></button>
+        </div>
+      </div>
+      <div class="result" aria-live="polite">
+        <span class="small" id="rLabel">Pris hos ElAutoFix</span>
+        <span class="big" id="rPrice">Efter måling</span>
+        <span class="small" id="rNote">Et nyt batteri koster 70.000-80.000 kr.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="s-co2" data-cam="co2" style="min-height:130vh">
+    <div class="card">
+      <h2>Godt for klimaet</h2>
+      <p class="lead">Et nyt elbilbatteri udleder <b>2,2-5,4 ton CO2</b>, når det bliver lavet. Et repareret batteri udleder ikke mere.</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <span class="q">Hvis vi reparerer så mange batterier:</span>
+        <div class="stepper">
+          <button id="minus" aria-label="Færre batterier"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+          <output id="n" aria-live="polite">25<span class="u">batterier</span></output>
+          <button id="plus" aria-label="Flere batterier"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg></button>
+        </div>
+      </div>
+      <div class="result" aria-live="polite">
+        <span class="small">Så sparer vi mindst</span>
+        <span class="big" id="co2">55 ton CO2</span>
+        <span class="small" id="co2hi">og op til 135 ton</span>
+      </div>
+      <div class="key"><span><i style="background:var(--green)"></i>Mindst</span><span><i style="background:var(--greenDim)"></i>Op til</span><span>1 klods = 10 ton</span></div>
+    </div>
+  </section>
+
+  <section class="sec" id="s-om" data-cam="om" style="min-height:110vh">
+    <div class="card">
+      <h2>Derfor gør vi det</h2>
+      <p class="lead">Flere skal have deres batteri <b>repareret</b> i stedet for at købe et nyt eller skifte til benzin. Så skal der laves færre nye batterier.</p>
+      <div class="facts">
+        <div><span>Kapacitet efter reparation</span><b>90-100 %</b></div>
+        <div><span>Nye dele der skal laves</span><b>Ingen</b></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer><b>ElAutoFix</b> · Vi reparerer elbil- og busbatterier med brugte dele · NF-projekt</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function col(n){var c=new THREE.Color();c.setStyle(css(n));return c}
+function clamp(x,a,b){return Math.max(a,Math.min(b,x))}
+function lerp(a,b,t){return a+(b-a)*t}
+function ease(t){t=clamp(t,0,1);return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2}
+function seg(t,a,b){return ease((t-a)/(b-a))}
+
+/* ---------- blød scroll ---------- */
+var lenis=null;
+if(!reduce&&window.Lenis){try{lenis=new Lenis({lerp:.09,smoothWheel:true});}catch(e){lenis=null}}
+document.querySelectorAll('nav.menu a').forEach(function(a){a.addEventListener('click',function(e){var t=document.querySelector(a.getAttribute('href'));if(!t)return;e.preventDefault();
+  if(lenis)lenis.scrollTo(t,{duration:1.8});else t.scrollIntoView({behavior:reduce?'auto':'smooth'})})});
+
+/* ---------- scene ---------- */
+var canvas=$('gl');
+var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;
+var scene=new THREE.Scene();scene.fog=new THREE.Fog(0xffffff,22,48);
+var camera=new THREE.PerspectiveCamera(38,1,.1,200);
+var hemi=new THREE.HemisphereLight(0xffffff,0x8090a0,1.1);scene.add(hemi);
+var sun=new THREE.DirectionalLight(0xffffff,1.9);sun.position.set(8,16,10);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+var sc=sun.shadow.camera;sc.left=-26;sc.right=26;sc.top=26;sc.bottom=-26;sc.far=70;sun.shadow.bias=-.0004;sun.target.position.set(0,0,-6);scene.add(sun,sun.target);
+
+var M={};
+function mat(k,o){M[k]=new THREE.MeshStandardMaterial(Object.assign({roughness:.6,metalness:.1},o||{}));return M[k]}
+['floor','metal','dark','car','glass','cell','bad','used','accent','accentGhost','copper','tire','light','tile','skin1','skin2','shirt1','shirt2','pants','beam','grey'].forEach(function(k){mat(k)});
+M.metal.metalness=.5;M.metal.roughness=.35;M.car.metalness=.35;M.car.roughness=.3;M.glass.metalness=.6;M.glass.roughness=.15;
+M.accentGhost.transparent=true;M.accentGhost.opacity=.28;M.beam.transparent=true;M.beam.opacity=.55;M.beam.depthWrite=false;M.copper.metalness=.7;
+var cubeMat=new THREE.MeshStandardMaterial({roughness:.55,metalness:.05});
+var greenA,greenB,tileC,labels=[];
+function theme(){
+  var bg=col('--bg');renderer.setClearColor(bg);scene.fog.color.copy(bg);
+  M.floor.color=col('--s-floor');M.metal.color=col('--s-metal');M.dark.color=col('--s-dark');M.car.color=col('--s-car');M.glass.color=col('--s-glass');
+  M.cell.color=col('--s-cell');M.tile.color=col('--s-tile');M.tire.color=col('--s-dark').multiplyScalar(.6);M.grey.color=col('--s-metal');
+  var a=col('--accent'),b=col('--bad');
+  M.bad.color=b;M.bad.emissive=b.clone().multiplyScalar(.55);M.used.color=a;M.used.emissive=a.clone().multiplyScalar(.45);
+  M.accent.color=a;M.accent.emissive=a.clone().multiplyScalar(.25);M.accentGhost.color=a;M.beam.color=a;M.beam.emissive=a;
+  M.copper.color.set('#C07A45');M.light.color.set('#ffffff');M.light.emissive.set('#ffffff');
+  M.skin1.color.set('#C89068');M.skin2.color.set('#7A4E33');M.shirt1.color=a.clone();M.shirt2.color=col('--s-dark').lerp(new THREE.Color('#ffffff'),.18);M.pants.color=col('--s-dark').multiplyScalar(.8);
+  var dark=bg.getHSL({}).l<.3;hemi.intensity=dark?1.1:1.15;sun.intensity=dark?2.1:1.9;
+  greenA=col('--green');greenB=col('--greenDim');tileC=col('--s-tile');
+  labels.forEach(function(l){l.draw()});
+}
+function box(w,h,d,m,x,y,z,p){var o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x||0,y||0,z||0);o.castShadow=o.receiveShadow=true;(p||scene).add(o);return o}
+function cyl(r,h,m,x,y,z,p){var o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,24),m);o.position.set(x||0,y||0,z||0);o.castShadow=o.receiveShadow=true;(p||scene).add(o);return o}
+function label(text,size){
+  var c=document.createElement('canvas');c.width=1024;c.height=128;var ctx=c.getContext('2d');var tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false,depthTest:false}));sp.renderOrder=10;sp.scale.set(size*8,size,1);
+  var L={sprite:sp,text:text,draw:function(){ctx.clearRect(0,0,1024,128);ctx.font='600 56px Geist, -apple-system, system-ui, sans-serif';
+    var w=Math.min(1010,ctx.measureText(L.text).width+64),x=(1024-w)/2;ctx.fillStyle=css('--solid');ctx.beginPath();ctx.roundRect(x,20,w,88,44);ctx.fill();
+    ctx.fillStyle=css('--ink');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(L.text,512,66);tex.needsUpdate=true}};
+  L.set=function(t){if(t!==L.text){L.text=t;L.draw()}};labels.push(L);return L;
+}
+var floor=new THREE.Mesh(new THREE.PlaneGeometry(200,200),M.floor);floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+var grid=new THREE.GridHelper(200,200,0x000000,0x000000);grid.material.transparent=true;grid.material.opacity=.045;grid.position.y=.002;scene.add(grid);
+
+/* værksted */
+var CAR_X=-3.2,BENCH_X=1.7;
+[-1,1].forEach(function(s){box(.22,2.6,.22,M.metal,CAR_X,1.3,s*1.45);box(.6,.05,.6,M.dark,CAR_X,.025,s*1.45);[-1.7,1.7].forEach(function(dx){box(.12,.08,1.4,M.dark,CAR_X+dx,1.5,s*.8)})});
+var car=new THREE.Group();car.position.set(CAR_X,1.3,0);scene.add(car);
+(function(){
+  var p=[[-2.1,.25],[2.1,.25],[2.17,.58],[1.95,.82],[1.0,.93],[.35,1.40],[-1.25,1.44],[-1.95,1.02],[-2.17,.78]];
+  var sh=new THREE.Shape();sh.moveTo(p[0][0],p[0][1]);p.slice(1).forEach(function(q){sh.lineTo(q[0],q[1])});
+  var g=new THREE.ExtrudeGeometry(sh,{depth:1.7,bevelEnabled:true,bevelThickness:.08,bevelSize:.08,bevelSegments:4});g.translate(0,0,-.85);
+  var body=new THREE.Mesh(g,M.car);body.castShadow=body.receiveShadow=true;car.add(body);
+  var w=[[.88,.96],[.34,1.34],[-1.18,1.37],[-1.8,1.0]];var ws=new THREE.Shape();ws.moveTo(w[0][0],w[0][1]);w.slice(1).forEach(function(q){ws.lineTo(q[0],q[1])});
+  var wg=new THREE.ExtrudeGeometry(ws,{depth:1.9,bevelEnabled:false});wg.translate(0,0,-.95);car.add(new THREE.Mesh(wg,M.glass));
+  [[1.35,.9],[1.35,-.9],[-1.35,.9],[-1.35,-.9]].forEach(function(q){var t=cyl(.36,.26,M.tire,q[0],.33,q[1],car);t.rotation.x=Math.PI/2;var r=cyl(.2,.28,M.metal,q[0],.33,q[1],car);r.rotation.x=Math.PI/2});
+  box(.04,.06,1.5,M.light,2.2,.68,0,car);box(.04,.06,1.5,M.light,-2.2,.75,0,car);
+})();
+var cart=new THREE.Group();cart.position.set(CAR_X,0,0);scene.add(cart);
+box(3.0,.06,2.0,M.metal,0,.84,0,cart);
+[[-1.35,-.85],[1.35,-.85],[-1.35,.85],[1.35,.85]].forEach(function(q){box(.08,.7,.08,M.dark,q[0],.47,q[1],cart);var w=cyl(.08,.06,M.tire,q[0],.08,q[1],cart);w.rotation.x=Math.PI/2});
+box(.06,.06,1.9,M.dark,-1.6,1.0,0,cart);box(.06,.4,.06,M.dark,-1.6,.82,.9,cart);box(.06,.4,.06,M.dark,-1.6,.82,-.9,cart);
+var tray=box(2.7,.14,1.75,M.dark,0,1.5,0,cart);
+var CAP=[94,91,96,38,92,45,95,30,90,33,93,97,28,91,94,90,22,95,92,36,96,35,90,93],FRESH=[93,95,92,96,94,91,95,93];
+var modGeo=new THREE.BoxGeometry(.36,.24,.36);
+function slot(i){return {x:(i%6)*.42-1.05,y:.07+.12,z:Math.floor(i/6)*.4-.6}}
+var mods=CAP.map(function(v,i){var m=new THREE.Mesh(modGeo,M.cell);m.castShadow=m.receiveShadow=true;scene.add(m);return {mesh:m,v:v,i:i}});
+var bad=mods.filter(function(m){return m.v<80});
+var beam=new THREE.Mesh(new THREE.BoxGeometry(.12,.5,1.9),M.beam);scene.add(beam);
+var SHELF={x:4.9,z:-1.0},BIN={x:4.9,z:1.05};
+box(1.3,.05,.95,M.metal,SHELF.x,.9,SHELF.z);box(1.3,.05,.95,M.metal,SHELF.x,.35,SHELF.z);
+[[-.6,-.42],[.6,-.42],[-.6,.42],[.6,.42]].forEach(function(q){box(.05,.92,.05,M.dark,SHELF.x+q[0],.46,SHELF.z+q[1])});
+function shelfPos(k){return {x:SHELF.x+(k%4)*.3-.45,y:.925+.12,z:SHELF.z+Math.floor(k/4)*.42-.21}}
+function binPos(j){return {x:BIN.x+(j%3-1)*.27,y:.17+Math.floor(j/3)*.25,z:BIN.z+(Math.floor(j/3)%2?.12:-.12)}}
+var spares=[];for(var k=0;k<8;k++){var s=new THREE.Mesh(modGeo,M.used);s.castShadow=true;scene.add(s);spares.push(s)}
+box(1.1,.05,1.0,M.dark,BIN.x,.025,BIN.z);box(1.1,.55,.05,M.dark,BIN.x,.3,BIN.z-.5);box(1.1,.55,.05,M.dark,BIN.x,.3,BIN.z+.5);box(.05,.55,1.0,M.dark,BIN.x-.55,.3,BIN.z);box(.05,.55,1.0,M.dark,BIN.x+.55,.3,BIN.z);
+var lShelf=label('Brugte dele',.34);lShelf.sprite.position.set(SHELF.x,1.65,SHELF.z);scene.add(lShelf.sprite);
+var lBin=label('Slidte dele',.34);lBin.sprite.position.set(BIN.x,1.05,BIN.z+.2);scene.add(lBin.sprite);
+var CR_Y=3.4;
+[[-.4,-1.6],[-.4,1.6],[5.8,-1.6],[5.8,1.6]].forEach(function(q){box(.14,CR_Y,.14,M.metal,q[0],CR_Y/2,q[1])});
+box(6.4,.12,.14,M.metal,2.7,CR_Y,-1.6);box(6.4,.12,.14,M.metal,2.7,CR_Y,1.6);
+var bridge=box(.16,.14,3.3,M.dark,2.7,CR_Y+.1,0),hoist=box(.32,.22,.32,M.dark,2.7,CR_Y-.06,0);
+var cable=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,1,6),M.dark);scene.add(cable);
+var grip=new THREE.Group();scene.add(grip);box(.42,.08,.42,M.accent,0,.16,0,grip);box(.04,.16,.3,M.dark,-.2,.06,0,grip);box(.04,.16,.3,M.dark,.2,.06,0,grip);
+
+function person(shirt,skin){
+  var g=new THREE.Group();scene.add(g);
+  function cap(r,l,m,parent,y){var o=new THREE.Mesh(new THREE.CapsuleGeometry(r,l,6,12),m);o.position.y=y;o.castShadow=true;parent.add(o);return o}
+  var hipL=new THREE.Group(),hipR=new THREE.Group();hipL.position.set(-.11,.88,0);hipR.position.set(.11,.88,0);g.add(hipL,hipR);
+  cap(.085,.62,M.pants,hipL,-.42);cap(.085,.62,M.pants,hipR,-.42);
+  var torso=cap(.21,.42,shirt,g,1.25);torso.scale.z=.75;
+  var shL=new THREE.Group(),shR=new THREE.Group();shL.position.set(-.29,1.5,0);shR.position.set(.29,1.5,0);g.add(shL,shR);
+  cap(.065,.48,shirt,shL,-.28);cap(.065,.48,shirt,shR,-.28);
+  var head=new THREE.Group();head.position.y=1.8;g.add(head);
+  var h=new THREE.Mesh(new THREE.SphereGeometry(.14,20,16),skin);h.castShadow=true;head.add(h);
+  var c=new THREE.Mesh(new THREE.SphereGeometry(.148,20,10,0,Math.PI*2,0,Math.PI/2),M.dark);c.position.y=.02;head.add(c);box(.2,.02,.14,M.dark,0,.04,.15,head);
+  return {g:g,hipL:hipL,hipR:hipR,shL:shL,shR:shR,head:head,phase:0,last:null,ry:0};
+}
+var p1=person(M.shirt1,M.skin1);p1.g.position.set(BENCH_X+.2,0,1.9);p1.g.rotation.y=Math.PI;p1.shL.rotation.x=p1.shR.rotation.x=-.75;
+var tablet=box(.34,.24,.02,M.glass,0,1.22,.42,p1.g);tablet.rotation.x=-.9;
+var p2=person(M.shirt2,M.skin2);
+var HOME={x:CAR_X+1.9,z:1.35},PUSH0={x:CAR_X-2.2,z:0},PUSH1={x:BENCH_X-2.2,z:0},SPOT={x:SHELF.x-1.0,z:SHELF.z-.9};
+var P2K=[[0,HOME],[.28,PUSH0],[.32,PUSH0],[1,PUSH1],[1.05,PUSH1],[1.35,SPOT],[2.95,SPOT],[3.2,PUSH1],[3.7,PUSH0],[3.75,PUSH0],[4,HOME]];
+
+/* pris-station */
+var PR={x:-24,z:-18};
+box(5,.2,3,M.tile,PR.x,.1,PR.z);
+function column(m,x,w){var o=new THREE.Mesh(new THREE.BoxGeometry(w,1,w),m);o.geometry.translate(0,.5,0);o.castShadow=true;o.position.set(x,.2,PR.z);scene.add(o);return o}
+var colOld=column(M.grey,PR.x-1.1,1.3),colLo=column(M.accent,PR.x+1.1,1.3),colHi=column(M.accentGhost,PR.x+1.1,1.32);
+var lOld=label('Nyt: 80.000 kr',.42),lNew=label('ElAutoFix',.42);scene.add(lOld.sprite,lNew.sprite);
+var H={lo:.5,hi:1,cur:{old:.01,lo:.01,hi:.01}};
+
+/* co2-station */
+var CO={x:24,z:-18},COLS=27,ROWS=4,N_C=COLS*ROWS;
+var cubes=new THREE.InstancedMesh(new THREE.BoxGeometry(.4,1,.4),cubeMat,N_C);cubes.castShadow=cubes.receiveShadow=true;scene.add(cubes);
+var cH=new Float32Array(N_C).fill(.04),cT=new Float32Array(N_C).fill(.04),cK=new Uint8Array(N_C);var dummy=new THREE.Object3D();
+
+/* ---------- værkstedet som funktion af t (0-4) ---------- */
+function along(K,t){for(var i=0;i<K.length-1;i++){if(t<=K[i+1][0]){var a=K[i],b=K[i+1],u=(t-a[0])/Math.max(1e-6,b[0]-a[0]);u=clamp(u,0,1);return {x:lerp(a[1].x,b[1].x,u),z:lerp(a[1].z,b[1].z,u)}}}return K[K.length-1][1]}
+var IDLE={x:2.7,y:2.6,z:0};
+function gripPath(t){
+  if(t<2)return IDLE;
+  if(t>=3)return lerp3(above(bad.length-1,2.3),IDLE,seg(t,3,3.15));
+  var j=Math.min(7,Math.floor((t-2)*8)),u=(t-2)*8-j;
+  var s=slotW(bad[j].i,BENCH_X),top=s.y+.12,sp=shelfPos(j),bp=binPos(j);
+  var prev=j===0?IDLE:{x:slotW(bad[j-1].i,BENCH_X).x,y:2.3,z:slotW(bad[j-1].i,BENCH_X).z};
+  var K=[[0,prev],[.12,{x:s.x,y:2.3,z:s.z}],[.2,{x:s.x,y:top,z:s.z}],[.28,{x:s.x,y:2.3,z:s.z}],[.42,{x:bp.x,y:1.15,z:bp.z}],
+         [.56,{x:sp.x,y:2.0,z:sp.z}],[.63,{x:sp.x,y:sp.y+.12,z:sp.z}],[.7,{x:sp.x,y:2.3,z:sp.z}],[.86,{x:s.x,y:2.3,z:s.z}],[.95,{x:s.x,y:top,z:s.z}],[1,{x:s.x,y:2.3,z:s.z}]];
+  for(var i=0;i<K.length-1;i++)if(u<=K[i+1][0])return lerp3(K[i][1],K[i+1][1],ease((u-K[i][0])/(K[i+1][0]-K[i][0])));
+  return K[K.length-1][1];
+}
+function above(j,y){var s=slotW(bad[j].i,BENCH_X);return {x:s.x,y:y,z:s.z}}
+function lerp3(a,b,e){return {x:lerp(a.x,b.x,e),y:lerp(a.y,b.y,e),z:lerp(a.z,b.z,e)}}
+var packY=1.5,cartX=CAR_X;
+function slotW(i,cx){var s=slot(i);return {x:(cx===undefined?cartX:cx)+s.x,y:packY+s.y,z:s.z}}
+
+function setWorkshop(t){
+  // vogn og pakke
+  cartX=t<.32?CAR_X:t<1?lerp(CAR_X,BENCH_X,seg(t,.32,1)):t<3.2?BENCH_X:t<3.7?lerp(BENCH_X,CAR_X,seg(t,3.2,3.7)):CAR_X;
+  packY=t<.3?lerp(1.5,1.0,seg(t,0,.3)):t<3.72?1.0:lerp(1.0,1.5,seg(t,3.72,3.95));
+  cart.position.x=cartX;tray.position.y=packY;
+  M.light.emissiveIntensity=t>3.9?seg(t,3.9,4)*2.2:0;
+  // scan
+  var bx=lerp(-1.5,1.5,clamp((t-1.05)/.8,0,1));beam.visible=t>1.05&&t<1.85;beam.position.set(cartX+bx,packY+.3,0);
+  var scanned=t>=1.85?99:(t>1.05?bx:-99);
+  // kran
+  var G=gripPath(t);grip.position.set(G.x,G.y,G.z);bridge.position.x=G.x;hoist.position.set(G.x,CR_Y-.06,G.z);
+  var len=Math.max(.01,CR_Y-.17-(G.y+.2));cable.scale.y=len;cable.position.set(G.x,G.y+.2+len/2,G.z);
+  // moduler
+  var swapped=0,sum=0,weakLeft=0;
+  mods.forEach(function(m){
+    var bi=bad.indexOf(m),s=slotW(m.i),pos=s,rotY=0,isBad=m.v<80;
+    var u=bi<0?-1:(t-2)*8-bi;
+    if(bi>=0){
+      if(u>=.2&&u<.42)pos={x:G.x,y:G.y-.12,z:G.z};
+      else if(u>=.42){var bp=binPos(bi),from={x:binPos(bi).x,y:1.03,z:binPos(bi).z},e=clamp((u-.42)/.07,0,1);pos=u<.49?{x:bp.x,y:lerp(1.03,bp.y,e*e),z:bp.z}:bp;rotY=(bi%2?.3:-.25)*e}
+      if(t>=3){pos=binPos(bi);rotY=bi%2?.3:-.25}
+    }
+    m.mesh.position.set(pos.x,pos.y,pos.z);m.mesh.rotation.y=rotY;
+    m.mesh.material=(isBad&&m.mesh.position.x-cartX<scanned+1e-3&&(t>1.05))?M.bad:M.cell;
+    var placed=bi>=0&&(u>=.95||t>=3);
+    if(placed)swapped++;
+    sum+=placed?FRESH[bi]:m.v;if(isBad&&!placed)weakLeft++;
+  });
+  spares.forEach(function(sp,j){
+    var u=(t-2)*8-j,p=shelfPos(j),sc=.8;
+    if(t>=3||u>=.95){var s=slotW(bad[j].i);p=s;sc=1}
+    else if(u>=.63){p={x:G.x,y:G.y-.12,z:G.z};sc=lerp(.8,1,clamp((u-.63)/.3,0,1))}
+    sp.position.set(p.x,p.y,p.z);sp.scale.set(sc,1,sc);
+  });
+  // person 2
+  var P=along(P2K,t),pp=p2.g.position,dx=P.x-pp.x,dz=P.z-pp.z,d=Math.hypot(dx,dz);
+  if(p2.last===null){pp.set(P.x,0,P.z);p2.last=1}
+  else{pp.x=P.x;pp.z=P.z;
+    if(d>.002){p2.ry=Math.atan2(dx,dz);p2.phase+=d*6}
+    var pushing=(t>.32&&t<1)||(t>3.2&&t<3.7);if(pushing)p2.ry=t<2?Math.PI/2:-Math.PI/2;
+    if(t>1.35&&t<2.95)p2.ry=Math.PI*.75;
+    var dr=((p2.ry-p2.g.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI;p2.g.rotation.y+=dr*.15;
+    var mv=clamp(d*40,0,1);var sw=Math.sin(p2.phase)*.5*mv;p2.hipL.rotation.x=sw;p2.hipR.rotation.x=-sw;
+    p2.shL.rotation.x=pushing?-.9:-sw*.8;p2.shR.rotation.x=pushing?-.9:sw*.8;
+  }
+  return {pct:Math.round(sum/mods.length),swapped:swapped,weak:weakLeft};
+}
+
+/* ---------- kamera pr. sektion ---------- */
+var CAMS={
+  hero:{t:[.3,1.3,0],d:17,yaw:.62,pitch:.36},
+  car:{t:[CAR_X,1.6,0],d:11,yaw:.72,pitch:.26},
+  takeout:{t:[-.8,1.1,0],d:12,yaw:.55,pitch:.38},
+  scan:{t:[BENCH_X,1.0,0],d:7.5,yaw:.35,pitch:.75},
+  swap:{t:[3.0,1.3,0],d:10.5,yaw:.45,pitch:.5},
+  putback:{t:[-1.6,1.4,0],d:12,yaw:.7,pitch:.3},
+  pris:{t:[PR.x,2.0,PR.z],d:12,yaw:.3,pitch:.25},
+  co2:{t:[CO.x,.3,CO.z],d:23,yaw:0,pitch:.92},
+  om:{t:[0,.5,-9],d:44,yaw:.15,pitch:.68}
+};
+var secs=[].slice.call(document.querySelectorAll('.sec')),cam={t:new THREE.Vector3(.3,1.3,0),d:17,yaw:.62,pitch:.36},T=0,Tshow=0;
+var mouse={x:0,y:0},ms={x:0,y:0};
+addEventListener('pointermove',function(e){mouse.x=e.clientX/innerWidth-.5;mouse.y=e.clientY/innerHeight-.5});
+function target(){
+  var vh=innerHeight,ref=vh*.55,act=0,p=0;
+  for(var i=0;i<secs.length;i++){var r=secs[i].getBoundingClientRect();if(r.top<=ref){act=i;p=clamp((ref-r.top)/r.height,0,1)}}
+  var s=secs[act],a=CAMS[s.dataset.cam],nx=secs[act+1]?CAMS[secs[act+1].dataset.cam]:a,blend=ease(clamp((p-.72)/.28,0,1));
+  var tt=0;for(var j=0;j<=act;j++){var sj=secs[j];if(sj.dataset.t1!==undefined)tt=(j===act)?lerp(+sj.dataset.t0,+sj.dataset.t1,clamp(p/.85,0,1)):+sj.dataset.t1}
+  return {a:a,b:nx,e:blend,t:tt,cam:s.dataset.cam};
+}
+
+/* ---------- layout ---------- */
+var fitK=1;
+function resize(){
+  var w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;
+  if(w>820){var off=Math.min(560,w*.36);camera.setViewOffset(w+off,h,0,0,w,h);camera.fov=38;fitK=1}
+  else{var top=h*.42;camera.setViewOffset(w,h+top,0,top,w,h);camera.fov=w<h?52:40;fitK=w<h?1.6:1.1}
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize',resize);
+
+/* ---------- prisregner ---------- */
+var P={bil:{old:80000,oldT:'70.000-80.000 kr',tiers:null},bus:{old:500000,oldT:'ca. 500.000 kr',tiers:[[20000,50000],[50000,100000],[100000,300000]]}};
+var veh='bil',dmg=1;var nf=function(x){return Math.round(x).toLocaleString('da-DK')};
+function press(g,b){[].forEach.call(g.children,function(x){x.setAttribute('aria-pressed',x===b)})}
+$('veh').addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;veh=b.dataset.v;press($('veh'),b);price()});
+$('dmg').addEventListener('click',function(e){var b=e.target.closest('button');if(!b||b.disabled)return;dmg=+b.dataset.d;press($('dmg'),b);price()});
+function price(){
+  var d=P[veh];lOld.set('Nyt: '+d.oldT);
+  if(d.tiers){var r=d.tiers[dmg];
+    $('rPrice').textContent=nf(r[0])+'-'+nf(r[1])+' kr';
+    $('rNote').textContent='Du sparer mindst '+nf(d.old-r[1])+' kr i forhold til et nyt batteri til '+nf(d.old)+' kr.';
+    H.lo=4.5*r[0]/d.old;H.hi=4.5*r[1]/d.old;lNew.set('ElAutoFix: '+nf(r[0]/1000)+'-'+nf(r[1]/1000)+'.000 kr');
+  }else{
+    $('rPrice').textContent='Pris efter måling';
+    $('rNote').textContent='Vi måler batteriet først og giver dig en fast pris. Et nyt batteri koster 70.000-80.000 kr.';
+    H.lo=.02;H.hi=3.0;lNew.set('ElAutoFix: efter måling');
+  }
+}
+price();
+
+/* ---------- co2 ---------- */
+var n=25;
+function co2(){
+  var lo=n*2.2,hi=n*5.4;$('n').firstChild.nodeValue=n;
+  $('co2').textContent=nf(lo)+' ton CO2';$('co2hi').textContent='og op til '+nf(hi)+' ton';
+  var a=Math.round(lo/10),b=Math.round(hi/10);for(var i=0;i<N_C;i++){cT[i]=i<a?1.1:i<b?.55:.04;cK[i]=i<a?2:i<b?1:0}
+}
+function stepN(dv){n=clamp(n+dv,1,200);co2()}
+var hold=null;
+[['minus',-1],['plus',1]].forEach(function(q){var b=$(q[0]);
+  b.addEventListener('click',function(){stepN(q[1]*(n>=20?5:1))});
+});
+co2();
+
+/* ---------- loop ---------- */
+var clock=new THREE.Clock(),gauge=$('gauge'),last={pct:-1};
+var showGauge={takeout:1,scan:1,swap:1,putback:1};
+function frame(){
+  var dt=Math.min(.05,clock.getDelta()),time=clock.elapsedTime;
+  var tg=target(),k=reduce?1:1-Math.pow(.0015,dt);
+  var A=tg.a,B=tg.b,e=tg.e;
+  var tx=lerp(A.t[0],B.t[0],e),ty=lerp(A.t[1],B.t[1],e),tz=lerp(A.t[2],B.t[2],e);
+  cam.t.x+=(tx-cam.t.x)*k;cam.t.y+=(ty-cam.t.y)*k;cam.t.z+=(tz-cam.t.z)*k;
+  cam.d+=(lerp(A.d,B.d,e)-cam.d)*k;cam.yaw+=(lerp(A.yaw,B.yaw,e)-cam.yaw)*k;cam.pitch+=(lerp(A.pitch,B.pitch,e)-cam.pitch)*k;
+  T+=(tg.t-T)*(reduce?1:1-Math.pow(.004,dt));
+  ms.x+=(mouse.x-ms.x)*.04;ms.y+=(mouse.y-ms.y)*.04;
+  var yaw=cam.yaw+(reduce?0:ms.x*.08+Math.sin(time*.1)*.03),pitch=cam.pitch+(reduce?0:ms.y*.04),d=cam.d*fitK;
+  camera.position.set(cam.t.x+d*Math.cos(pitch)*Math.sin(yaw),cam.t.y+d*Math.sin(pitch),cam.t.z+d*Math.cos(pitch)*Math.cos(yaw));
+  camera.lookAt(cam.t);scene.fog.near=d*1.3;scene.fog.far=d*3.2;
+  var W=setWorkshop(T);
+  if(W.pct!==last.pct){$('gPct').textContent=W.pct;$('gBar').style.width=W.pct+'%';$('gBar').style.background=W.pct>=88?'var(--green)':'var(--bad)';last.pct=W.pct}
+  $('swapN').textContent=W.swapped;
+  if(showGauge[tg.cam])gauge.removeAttribute('data-off');else gauge.setAttribute('data-off','');
+  // mekaniker 1 kigger på kranen
+  var gp=grip.position,pp=p1.g.position,ang=Math.atan2(gp.x-pp.x,gp.z-pp.z)-p1.g.rotation.y;ang=((ang+Math.PI*3)%(Math.PI*2))-Math.PI;
+  p1.head.rotation.y+=(clamp(ang,-1,1)-p1.head.rotation.y)*.08;p2.head.rotation.y=Math.sin(time*.5)*.2;
+  // pris-søjler (vokser når man er der)
+  var nearP=tg.cam==='pris'||(tg.b===CAMS.pris&&tg.e>.3),h=H.cur;
+  h.old+=((nearP?4.5:.01)-h.old)*.05;h.lo+=((nearP?H.lo:.01)-h.lo)*.05;h.hi+=((nearP?H.hi:.01)-h.hi)*.05;
+  colOld.scale.y=Math.max(.01,h.old);colLo.scale.y=Math.max(.01,h.lo);colHi.position.y=.2+h.lo;colHi.scale.y=Math.max(.01,h.hi-h.lo);
+  lOld.sprite.position.set(PR.x-1.1,h.old+.85,PR.z);lNew.sprite.position.set(PR.x+1.1,h.hi+.85,PR.z);
+  // co2-klodser
+  var nearC=tg.cam==='co2'||tg.cam==='om'||(tg.b===CAMS.co2&&tg.e>.3);
+  for(var c=0;c<N_C;c++){var tgt=nearC?cT[c]:.04;cH[c]+=(tgt-cH[c])*.06;
+    dummy.position.set(CO.x+(c%COLS-(COLS-1)/2)*.5,cH[c]/2,CO.z+(Math.floor(c/COLS)-(ROWS-1)/2)*.5);dummy.scale.set(1,cH[c],1);dummy.updateMatrix();cubes.setMatrixAt(c,dummy.matrix);
+    cubes.setColorAt(c,cK[c]===2?greenA:cK[c]===1?greenB:tileC)}
+  cubes.instanceMatrix.needsUpdate=true;if(cubes.instanceColor)cubes.instanceColor.needsUpdate=true;
+  renderer.render(scene,camera);
+}
+function raf(ts){if(lenis)lenis.raf(ts);frame();requestAnimationFrame(raf)}
+
+theme();resize();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',theme);
+new MutationObserver(theme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+if(document.fonts)document.fonts.ready.then(function(){labels.forEach(function(l){l.draw()})});
+requestAnimationFrame(raf);
+})();
+</script>
+</body>
+</html>
